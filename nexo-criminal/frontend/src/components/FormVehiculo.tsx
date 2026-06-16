@@ -24,11 +24,13 @@ const vacio = (estado: EstadoVehiculo): Vehiculo => ({
 });
 
 interface Props {
-  /** Estado con que nace el vehículo (default ROBADO). */
+  /** Si viene, el form arranca en modo edición con estos datos. */
+  vehiculoInicial?: Vehiculo | null;
+  /** Estado con que nace el vehículo (default ROBADO). Solo aplica en creación. */
   estadoInicial?: EstadoVehiculo;
   /** Si es true, muestra el campo propietario + su botón "+". */
   mostrarPropietario?: boolean;
-  /** Se dispara al crear con éxito, con el vehículo resultante. */
+  /** Se dispara al guardar con éxito, con el vehículo resultante. */
   onGuardado: (vehiculo: Vehiculo) => void;
   /** Botón cancelar opcional. */
   onCancelar?: () => void;
@@ -37,13 +39,15 @@ interface Props {
 }
 
 export default function FormVehiculo({
+  vehiculoInicial,
   estadoInicial = 'ROBADO',
   mostrarPropietario = false,
   onGuardado,
   onCancelar,
   textoGuardar,
 }: Props) {
-  const [form, setForm] = useState<Vehiculo>(vacio(estadoInicial));
+  const editando = !!vehiculoInicial?.id;
+  const [form, setForm] = useState<Vehiculo>(vehiculoInicial ?? vacio(estadoInicial));
   const [err, setErr] = useState('');
   const [guardando, setGuardando] = useState(false);
 
@@ -73,9 +77,14 @@ export default function FormVehiculo({
     setErr('');
     setGuardando(true);
     try {
-      const resultado = await vehiculoService.crear(form);
+      let resultado: Vehiculo;
+      if (editando) {
+        resultado = await vehiculoService.actualizar(vehiculoInicial!.id!, form);
+      } else {
+        resultado = await vehiculoService.crear(form);
+      }
       onGuardado(resultado);
-      setForm(vacio(estadoInicial));
+      if (!editando) setForm(vacio(estadoInicial));
     } catch (e: any) {
       setErr(e?.response?.data?.error || 'Error al guardar');
     } finally {
@@ -136,6 +145,26 @@ export default function FormVehiculo({
               ))}
             </select>
           </div>
+          <div className="form-group full">
+            <label className="form-label">Número de chasis</label>
+            <input
+              value={form.chasis || ''}
+              onChange={(e) => setForm({ ...form, chasis: e.target.value.toUpperCase() })}
+              placeholder="8AJBA3FS5K0000000"
+              required
+              maxLength={40}
+              style={{ fontFamily: 'var(--font-mono)', letterSpacing: '0.05em' }}
+            />
+          </div>
+          <div className="form-group full">
+            <label className="form-label">Declaración (opcional)</label>
+            <textarea
+              rows={4}
+              value={form.declaracion || ''}
+              onChange={(e) => setForm({ ...form, declaracion: e.target.value })}
+              placeholder="Relato del hecho: cómo ocurrió, circunstancias, detalles relevantes..."
+            />
+          </div>
           <div className="form-group">
             <label className="form-label">Estado</label>
             <select
@@ -190,8 +219,10 @@ export default function FormVehiculo({
             </button>
           )}
           <button type="submit" className="btn-primary" disabled={guardando}>
-            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>add_circle</span>
-            {guardando ? 'Guardando...' : (textoGuardar ?? 'Crear Registro')}
+            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
+              {editando ? 'save' : 'add_circle'}
+            </span>
+            {guardando ? 'Guardando...' : (textoGuardar ?? (editando ? 'Actualizar registro' : 'Crear Registro'))}
           </button>
         </div>
       </form>

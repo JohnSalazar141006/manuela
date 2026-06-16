@@ -7,6 +7,7 @@ import type {
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
 import { divIcon } from 'leaflet';
 import Modal from './Modal';
+import GaleriaFotos from './GaleriaFotos';
 
 interface Props {
   inicial: PersonaDesaparecida | null;
@@ -55,7 +56,7 @@ export default function FormularioDesaparecida({ inicial, onGuardado, onCancelar
 
   const [archivo, setArchivo] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [seccion, setSeccion] = useState<'datos' | 'fisico' | 'circunstancias' | 'reportante'>('datos');
+  const [seccion, setSeccion] = useState<'datos' | 'fisico' | 'circunstancias' | 'reportante' | 'fotos'>('datos');
 
   // Ubicación inline (solo coordenadas vía mapa)
   const [ubiCoords, setUbiCoords] = useState<[number, number] | null>(null);
@@ -183,6 +184,8 @@ export default function FormularioDesaparecida({ inicial, onGuardado, onCancelar
           onClick={() => setSeccion('circunstancias')}>3. Circunstancias</button>
         <button type="button" className={`option-chip ${seccion === 'reportante' ? 'active' : ''}`}
           onClick={() => setSeccion('reportante')}>4. Reportante</button>
+        <button type="button" className={`option-chip ${seccion === 'fotos' ? 'active' : ''}`}
+          onClick={() => setSeccion('fotos')}>5. Fotos</button>
       </div>
 
       {/* Sección 1: Identificación */}
@@ -256,8 +259,6 @@ export default function FormularioDesaparecida({ inicial, onGuardado, onCancelar
                 <option value="">— Seleccionar —</option>
                 <option value="MASCULINO">Masculino</option>
                 <option value="FEMENINO">Femenino</option>
-                <option value="NO_BINARIO">No binario</option>
-                <option value="OTRO">Otro</option>
               </select>
             </div>
             <div className="form-group">
@@ -408,6 +409,17 @@ export default function FormularioDesaparecida({ inicial, onGuardado, onCancelar
         </div>
       )}
 
+      {/* Sección 5: Fotos */}
+      {seccion === 'fotos' && (
+        <div>
+          <p style={{ color: 'var(--slate-400)', fontSize: 13, marginBottom: 16 }}>
+            La foto principal se gestiona en la sección de Identificación. Acá podés agregar
+            fotos adicionales del caso (una vez guardado).
+          </p>
+          <GaleriaFotos desaparecidaId={inicial?.id} />
+        </div>
+      )}
+
       {err && <div className="error" style={{ marginTop: 16 }}>{err}</div>}
       {ok && <div className="success" style={{ marginTop: 16 }}>{ok}</div>}
 
@@ -416,10 +428,11 @@ export default function FormularioDesaparecida({ inicial, onGuardado, onCancelar
         marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--slate-800)',
       }}>
         <div style={{ fontSize: 11, color: 'var(--slate-500)' }}>
-          {seccion === 'datos' && 'Sección 1 de 4'}
-          {seccion === 'fisico' && 'Sección 2 de 4'}
-          {seccion === 'circunstancias' && 'Sección 3 de 4'}
-          {seccion === 'reportante' && 'Sección 4 de 4'}
+          {seccion === 'datos' && 'Sección 1 de 5'}
+          {seccion === 'fisico' && 'Sección 2 de 5'}
+          {seccion === 'circunstancias' && 'Sección 3 de 5'}
+          {seccion === 'reportante' && 'Sección 4 de 5'}
+          {seccion === 'fotos' && 'Sección 5 de 5'}
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button type="button" className="btn-ghost" onClick={onCancelar}>Cancelar</button>

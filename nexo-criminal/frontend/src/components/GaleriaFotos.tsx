@@ -1,176 +1,185 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { desaparecidaService } from '../services/api';
 import { fileUrl } from '../services/files';
 import type { FotoDesaparecida } from '../types';
-import { useConfirm } from '../services/ConfirmContext';
-import { useToast } from '../services/ToastContext';
 
 interface Props {
-  personaId: number;
-  editable?: boolean;
+  /** Id de la persona desaparecida. Si es null/undefined, la galería está deshabilitada. */
+  desaparecidaId?: number | null;
+  /** Se dispara cuando cambian las fotos (subir/borrar/principal), por si el padre quiere recargar. */
+  onCambio?: () => void;
 }
 
-export default function GaleriaFotos({ personaId, editable = true }: Props) {
+export default function GaleriaFotos({ desaparecidaId, onCambio }: Props) {
   const [fotos, setFotos] = useState<FotoDesaparecida[]>([]);
   const [cargando, setCargando] = useState(false);
   const [subiendo, setSubiendo] = useState(false);
-  const [error, setError] = useState('');
-  const confirmar = useConfirm();
-  const toast = useToast();
+  const [err, setErr] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const cargarFotos = async () => {
+    if (!desaparecidaId) return;
     setCargando(true);
     try {
-      const data = await desaparecidaService.listarFotos(personaId);
-      setFotos(data);
+      const lista = await desaparecidaService.listarFotos(desaparecidaId);
+      // Ordenar: principal primero, luego por orden
+      lista.sort((a, b) => {
+        if (a.principal && !b.principal) return -1;
+        if (!a.principal && b.principal) return 1;
+        return (a.orden ?? 0) - (b.orden ?? 0);
+      });
+      setFotos(lista);
     } catch (e) {
-      setError('No se pudieron cargar las fotos');
+      console.error('Cargar fotos:', e);
     } finally {
       setCargando(false);
     }
   };
 
   useEffect(() => {
-    if (personaId) cargarFotos();
-  }, [personaId]);
+    cargarFotos();
+  }, [desaparecidaId]);
 
-  const handleSubir = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const archivo = e.target.files?.[0];
-    if (!archivo) return;
-
-    if (!archivo.type.startsWith('image/')) {
-      setError('Solo se permiten imágenes');
-      return;
-    }
-    if (archivo.size > 5 * 1024 * 1024) {
-      setError('La imagen no puede superar 5MB');
-      return;
-    }
-
+  const handleArchivos = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const archivos = Array.from(e.target.files || []);
+    if (archivos.length === 0 || !desaparecidaId) return;
+    setErr('');
     setSubiendo(true);
-    setError('');
     try {
-      await desaparecidaService.agregarFoto(personaId, archivo);
+      // Subir una por una (el endpoint acepta de a una)
+      for (const archivo of archivos) {
+        if (!archivo.type.startsWith('image/')) {
+          setErr('Solo se permiten imágenes');
+          continue;
+        }
+        if (archivo.size > 5 * 1024 * 1024) {
+          setErr('Cada imagen debe ser menor a 5MB');
+          continue;
+        }
+        await desaparecidaService.agregarFoto(desaparecidaId, archivo);
+      }
       await cargarFotos();
-    } catch (e) {
-      setError('Error al subir la foto');
+      onCambio?.();
+    } catch (e: any) {
+      setErr(e?.response?.data?.error || 'Error al subir las fotos');
     } finally {
       setSubiendo(false);
-      e.target.value = '';
+      if (inputRef.current) inputRef.current.value = '';
     }
   };
 
-  const handleEliminar = async (fotoId: number) => {
-    const ok = await confirmar({
-      titulo: 'Eliminar foto',
-      mensaje: '¿Eliminar esta foto? Esta acción no se puede deshacer.',
-      textoConfirmar: 'Eliminar',
-      peligro: true,
-    });
-    if (!ok) return;
+  const marcarPrincipal = async (fotoId: number) => {
+    if (!desaparecidaId) return;
     try {
-      await desaparecidaService.eliminarFoto(personaId, fotoId);
+      await desaparecidaService.marcarFotoPrincipal(desaparecidaId, fotoId);
       await cargarFotos();
-      toast.exito('Foto eliminada');
+      onCambio?.();
     } catch (e) {
-      setError('Error al eliminar la foto');
+      console.error('Marcar principal:', e);
     }
   };
 
-  const handlePrincipal = async (fotoId: number) => {
+  const borrar = async (fotoId: number) => {
+    if (!desaparecidaId) return;
     try {
-      await desaparecidaService.marcarFotoPrincipal(personaId, fotoId);
+      await desaparecidaService.eliminarFoto(desaparecidaId, fotoId);
       await cargarFotos();
+      onCambio?.();
     } catch (e) {
-      setError('Error al marcar como principal');
+      console.error('Borrar foto:', e);
     }
   };
+
+  // Sin id: la persona aún no existe (modo creación), no se pueden subir fotos
+  if (!desaparecidaId) {
+    return (
+      <div style={{
+        padding: 16, textAlign: 'center', background: 'var(--slate-950)',
+        border: '1px dashed var(--slate-700)', color: 'var(--slate-500)', fontSize: 12,
+      }}>
+        <span className="material-symbols-outlined" style={{ fontSize: 28, display: 'block', marginBottom: 6 }}>
+          photo_library
+        </span>
+        Guardá el caso primero para poder agregar varias fotos.
+      </div>
+    );
+  }
 
   return (
-    <div style={{ marginTop: 16 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <h4 style={{ margin: 0 }}>Fotos ({fotos.length})</h4>
-        {editable && (
-          <label style={{
-            cursor: 'pointer',
-            padding: '6px 12px',
-            background: 'var(--purple-600, #8b5cf6)',
-            color: 'white',
-            borderRadius: 6,
-            fontSize: 13,
-          }}>
-            {subiendo ? 'Subiendo...' : '+ Agregar foto'}
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleSubir}
-              disabled={subiendo}
-              style={{ display: 'none' }}
-            />
-          </label>
-        )}
-      </div>
+    <div>
+      {/* Grilla de fotos */}
+      {fotos.length > 0 && (
+        <div style={{
+          display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))',
+          gap: 10, marginBottom: 12,
+        }}>
+          {fotos.map((f) => (
+            <div key={f.id} style={{
+              position: 'relative', border: f.principal ? '2px solid var(--red-500)' : '1px solid var(--slate-800)',
+              background: 'var(--slate-950)', overflow: 'hidden',
+            }}>
+              <img src={fileUrl(f.url) || ''} alt={f.descripcion || 'Foto'}
+                style={{ width: '100%', height: 110, objectFit: 'cover', display: 'block' }} />
 
-      {error && <p style={{ color: 'var(--red-500, #ef4444)', fontSize: 13 }}>{error}</p>}
-      {cargando && <p style={{ fontSize: 13, opacity: 0.7 }}>Cargando fotos...</p>}
+              {/* Badge principal */}
+              {f.principal && (
+                <div style={{
+                  position: 'absolute', top: 4, left: 4, background: 'var(--red-600)',
+                  color: 'white', fontSize: 9, fontWeight: 700, padding: '2px 6px',
+                  textTransform: 'uppercase', letterSpacing: '0.05em',
+                }}>
+                  Principal
+                </div>
+              )}
 
-      {!cargando && fotos.length === 0 && (
-        <p style={{ fontSize: 13, opacity: 0.6 }}>No hay fotos cargadas.</p>
-      )}
-
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
-        gap: 12,
-      }}>
-        {fotos.map((foto) => (
-          <div key={foto.id} style={{
-            position: 'relative',
-            border: foto.principal ? '2px solid var(--purple-600, #8b5cf6)' : '1px solid #ddd',
-            borderRadius: 8,
-            overflow: 'hidden',
-          }}>
-            <img
-              src={fileUrl(foto.url)}
-              alt="Foto"
-              style={{ width: '100%', height: 120, objectFit: 'cover', display: 'block' }}
-            />
-            {foto.principal && (
-              <span style={{
-                position: 'absolute', top: 4, left: 4,
-                background: 'var(--purple-600, #8b5cf6)', color: 'white',
-                fontSize: 10, padding: '2px 6px', borderRadius: 4,
-              }}>
-                Principal
-              </span>
-            )}
-            {editable && (
+              {/* Acciones sobre la foto */}
               <div style={{
                 position: 'absolute', bottom: 0, left: 0, right: 0,
-                display: 'flex', gap: 4, padding: 4,
-                background: 'rgba(0,0,0,0.6)',
+                display: 'flex', justifyContent: 'space-between',
+                background: 'rgba(2, 6, 23, 0.85)', padding: '4px 6px',
               }}>
-                {!foto.principal && (
-                  <button
-                    onClick={() => handlePrincipal(foto.id!)}
-                    style={{ flex: 1, fontSize: 10, cursor: 'pointer', border: 'none', borderRadius: 4, padding: '3px' }}
-                    title="Marcar como principal"
-                  >
-                    ★
+                {!f.principal ? (
+                  <button type="button" title="Marcar como principal"
+                    onClick={() => f.id && marcarPrincipal(f.id)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--slate-300)', display: 'inline-flex' }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: 16 }}>star</span>
                   </button>
-                )}
-                <button
-                  onClick={() => handleEliminar(foto.id!)}
-                  style={{ flex: 1, fontSize: 10, cursor: 'pointer', border: 'none', borderRadius: 4, padding: '3px', background: '#ef4444', color: 'white' }}
-                  title="Eliminar"
-                >
-                  🗑
+                ) : <span style={{ width: 16 }} />}
+                <button type="button" title="Eliminar foto"
+                  onClick={() => f.id && borrar(f.id)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--red-500)', display: 'inline-flex' }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 16 }}>delete</span>
                 </button>
               </div>
-            )}
-          </div>
-        ))}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {cargando && (
+        <div style={{ fontSize: 12, color: 'var(--slate-500)', marginBottom: 8 }}>Cargando fotos...</div>
+      )}
+
+      {fotos.length === 0 && !cargando && (
+        <div style={{ fontSize: 12, color: 'var(--slate-600)', marginBottom: 8 }}>
+          Sin fotos adicionales todavía.
+        </div>
+      )}
+
+      {/* Subir fotos */}
+      <label className="btn-secondary" style={{ display: 'inline-flex', cursor: subiendo ? 'wait' : 'pointer' }}>
+        <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
+          {subiendo ? 'hourglass_empty' : 'add_photo_alternate'}
+        </span>
+        {subiendo ? 'Subiendo...' : 'Agregar fotos'}
+        <input ref={inputRef} type="file" accept="image/*" multiple
+          onChange={handleArchivos} disabled={subiendo} style={{ display: 'none' }} />
+      </label>
+      <div style={{ fontSize: 10, color: 'var(--slate-600)', marginTop: 6 }}>
+        Podés seleccionar varias a la vez · Máx 5MB c/u · JPG, PNG, WebP
       </div>
+
+      {err && <div className="error" style={{ marginTop: 8 }}>{err}</div>}
     </div>
   );
 }

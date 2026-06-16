@@ -16,10 +16,10 @@ export function ModalConfiguracion({
 }: {
   abierto: boolean;
   onClose: () => void;
-  pestañaInicial?: 'general' | 'notifs' | 'motor';
+  pestañaInicial?: 'general' | 'motor';
 }) {
-  const { prefs, actualizar, actualizarNotificaciones, reset } = usePrefs();
-  const [tab, setTab] = useState<'general' | 'notifs' | 'motor'>(pestañaInicial);
+  const { prefs, actualizar, reset } = usePrefs();
+  const [tab, setTab] = useState<'general' | 'motor'>(pestañaInicial);
   const [guardado, setGuardado] = useState(false);
   const confirmar = useConfirm();
   const toast = useToast();
@@ -98,9 +98,6 @@ export function ModalConfiguracion({
         <button className={`option-chip ${tab === 'general' ? 'active' : ''}`} onClick={() => setTab('general')}>
           General
         </button>
-        <button className={`option-chip ${tab === 'notifs' ? 'active' : ''}`} onClick={() => setTab('notifs')}>
-          Notificaciones
-        </button>
         <button className={`option-chip ${tab === 'motor' ? 'active' : ''}`} onClick={() => setTab('motor')}>
           Umbrales del motor
         </button>
@@ -151,50 +148,6 @@ export function ModalConfiguracion({
               <span className="material-symbols-outlined" style={{ fontSize: 14 }}>restart_alt</span>
               Restaurar valores por defecto
             </button>
-          </div>
-        </div>
-      )}
-
-      {tab === 'notifs' && (
-        <div>
-          <div className="setting-row">
-            <div className="setting-label">
-              <span className="material-symbols-outlined">priority_high</span>
-              <div>
-                <div className="setting-label-text">Alertas críticas</div>
-                <div className="setting-label-desc">Mostrar notificaciones del nivel crítico y alto</div>
-              </div>
-            </div>
-            <div
-              className={`toggle ${prefs.notificaciones.alertasCriticas ? 'on' : ''}`}
-              onClick={() => actualizarNotificaciones({ alertasCriticas: !prefs.notificaciones.alertasCriticas })}
-            ></div>
-          </div>
-          <div className="setting-row">
-            <div className="setting-label">
-              <span className="material-symbols-outlined">summarize</span>
-              <div>
-                <div className="setting-label-text">Resumen diario</div>
-                <div className="setting-label-desc">Recibir un resumen con las alertas del día al iniciar sesión</div>
-              </div>
-            </div>
-            <div
-              className={`toggle ${prefs.notificaciones.resumenDiario ? 'on' : ''}`}
-              onClick={() => actualizarNotificaciones({ resumenDiario: !prefs.notificaciones.resumenDiario })}
-            ></div>
-          </div>
-          <div className="setting-row">
-            <div className="setting-label">
-              <span className="material-symbols-outlined">volume_up</span>
-              <div>
-                <div className="setting-label-text">Sonido de alertas</div>
-                <div className="setting-label-desc">Reproducir un tono al detectar alertas críticas</div>
-              </div>
-            </div>
-            <div
-              className={`toggle ${prefs.notificaciones.sonidoAlertas ? 'on' : ''}`}
-              onClick={() => actualizarNotificaciones({ sonidoAlertas: !prefs.notificaciones.sonidoAlertas })}
-            ></div>
           </div>
         </div>
       )}

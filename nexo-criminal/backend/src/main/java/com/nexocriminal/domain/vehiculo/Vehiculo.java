@@ -41,6 +41,12 @@ public class Vehiculo {
     @Column(length = 40)
     private String color;
 
+    @Column(name = "chasis", length = 40)
+    private String chasis;
+
+    @Column(name = "declaracion", columnDefinition = "TEXT")
+    private String declaracion;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     @Builder.Default

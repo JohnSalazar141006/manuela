@@ -97,7 +97,6 @@ export default function Personas() {
     setForm(p);
     setErr('');
     setOk('');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const cancelar = () => {
@@ -229,28 +228,7 @@ export default function Personas() {
         </button>
       </div>
 
-      {/* Formulario */}
-      <div className="form-card" style={{ marginBottom: 24 }}>
-        <div className="card-header" style={{ borderBottom: 'none', paddingBottom: 0, marginBottom: 20 }}>
-          <span className="material-symbols-outlined">person_add</span>
-          <h3 className="card-title">
-            {editandoId ? 'Editar persona' : 'Registrar nueva persona'}
-          </h3>
-        </div>
-
-        <FormPersona
-          key={editandoId ?? 'nuevo'}
-          personaInicial={editandoId ? form : null}
-          onGuardado={() => {
-            setOk(editandoId ? 'Persona actualizada correctamente' : 'Persona registrada correctamente');
-            setEditandoId(null);
-            cargar();
-            setTimeout(() => setOk(''), 3000);
-          }}
-          onCancelar={editandoId ? cancelar : undefined}
-        />
-        {ok && <div className="success" style={{ marginTop: 12 }}>{ok}</div>}
-      </div>
+      {ok && <div className="success" style={{ marginBottom: 16 }}>{ok}</div>}
 
       {/* Tabla */}
       <div className="table-wrap">
@@ -493,6 +471,28 @@ export default function Personas() {
           }
         />
       )}
+
+      {/* Modal Editar persona */}
+      <Modal
+        abierto={editandoId !== null}
+        onClose={cancelar}
+        titulo="Editar persona"
+        icono="edit"
+        ancho={620}
+      >
+        <FormPersona
+          key={editandoId ?? 'editar'}
+          personaInicial={editandoId ? form : null}
+          onGuardado={() => {
+            setOk('Persona actualizada correctamente');
+            setEditandoId(null);
+            cargar();
+            setTimeout(() => setOk(''), 3000);
+          }}
+          onCancelar={cancelar}
+          textoGuardar="Actualizar registro"
+        />
+      </Modal>
 
       {/* Modal de eliminación */}
       <ModalConfirmar

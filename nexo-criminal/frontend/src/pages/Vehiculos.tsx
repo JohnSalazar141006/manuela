@@ -19,13 +19,10 @@ import Modal from '../components/Modal';
 import { exportarCSV } from '../services/exportar';
 import FormVehiculo from '../components/FormVehiculo';
 
-// Todos los estados (para filtros y para mostrar etiquetas)
 const ESTADOS: EstadoVehiculo[] = [
   'NORMAL', 'ROBADO', 'RECUPERADO', 'DESAPARECIDO', 'BAJO_OBSERVACION', 'VEHICULO_APOYO',
 ];
 
-// Estados que el usuario puede elegir manualmente.
-// NORMAL y VEHICULO_APOYO los asigna el motor automaticamente, no el usuario.
 const ESTADOS_SELECCIONABLES: EstadoVehiculo[] = [
   'ROBADO', 'RECUPERADO', 'DESAPARECIDO', 'BAJO_OBSERVACION',
 ];
@@ -54,19 +51,16 @@ interface Avistamiento {
 
 export default function Vehiculos() {
   const [lista, setLista] = useState<Vehiculo[]>([]);
-  const [personas, setPersonas] = useState<Persona[]>([]);
   const [ubicaciones, setUbicaciones] = useState<Ubicacion[]>([]);
   const [sucesos, setSucesos] = useState<Suceso[]>([]);
   const [puntos, setPuntos] = useState<PuntoMapa[]>([]);
   const [filtro, setFiltro] = useState('');
   const [filtroEstado, setFiltroEstado] = useState<string>('');
-  const [form, setForm] = useState<Vehiculo>({
-    placa: '', marca: '', modelo: '', estado: 'ROBADO',
-  });
   const [err, setErr] = useState('');
   const [ok, setOk] = useState('');
   const [detalle, setDetalle] = useState<Vehiculo | null>(null);
   const [aEliminar, setAEliminar] = useState<Vehiculo | null>(null);
+  const [editando, setEditando] = useState<Vehiculo | null>(null);
   const [avistamientosVehiculo, setAvistamientosVehiculo] = useState<Avistamiento[]>([]);
   const [avAbierto, setAvAbierto] = useState(false);
   const [avForm, setAvForm] = useState<{ ubicacionId: string; fechaHora: string; fuente: string }>({
@@ -76,35 +70,19 @@ export default function Vehiculos() {
   });
 
   const cargar = async () => {
-    let vList: Vehiculo[] = [];
-    let pList: Persona[] = [];
-    let uList: Ubicacion[] = [];
     let sList: Suceso[] = [];
-
     try {
-      vList = await vehiculoService.listar();
-      setLista(vList);
+      setLista(await vehiculoService.listar());
     } catch (e) {
       console.error('Error cargando vehiculos:', e);
       setLista([]);
     }
-
     try {
-      pList = await personaService.listar();
-      setPersonas(pList);
-    } catch (e) {
-      console.error('Error cargando personas:', e);
-      setPersonas([]);
-    }
-
-    try {
-      uList = await ubicacionService.listar();
-      setUbicaciones(uList);
+      setUbicaciones(await ubicacionService.listar());
     } catch (e) {
       console.error('Error cargando ubicaciones:', e);
       setUbicaciones([]);
     }
-
     try {
       sList = await sucesoService.listar();
       setSucesos(sList);
@@ -140,34 +118,6 @@ export default function Vehiculos() {
   useEffect(() => {
     cargar();
   }, []);
-
-  // Tras crear un propietario inline: recarga la lista y lo selecciona en el vehículo
-  const onPropietarioCreado = async (persona: Persona) => {
-    setModalPropietario(false);
-    try {
-      const lista = await personaService.listar();
-      setPersonas(lista);
-      const nueva = lista.find((p) => p.id === persona.id) || persona;
-      setForm((f) => ({ ...f, propietario: nueva }));
-    } catch (e) {
-      console.error('Recargar personas:', e);
-    }
-  };
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErr('');
-    setOk('');
-    try {
-      await vehiculoService.crear(form);
-      setForm({ placa: '', marca: '', modelo: '', estado: 'ROBADO' });
-      setOk('Vehículo registrado correctamente');
-      setTimeout(() => setOk(''), 3000);
-      await cargar();
-    } catch (e: any) {
-      setErr(e?.response?.data?.error || 'Error al guardar');
-    }
-  };
 
   const cambiarEstado = async (id: number, estado: EstadoVehiculo) => {
     await vehiculoService.cambiarEstado(id, estado);
@@ -213,7 +163,6 @@ export default function Vehiculos() {
         fechaHora: new Date().toISOString().slice(0, 16),
         fuente: 'CAMARA_URBANA',
       });
-      // Recargar avistamientos
       const { data } = await api.get(`/avistamientos/vehiculo/${detalle.id}`);
       setAvistamientosVehiculo(data);
       setOk('Avistamiento registrado');
@@ -231,6 +180,7 @@ export default function Vehiculos() {
         Modelo: v.modelo,
         Anio: v.anio || '',
         Color: v.color || '',
+        Chasis: v.chasis || '',
         Estado: estadoLabel(v.estado),
         Propietario: v.propietario ? `${v.propietario.nombre} ${v.propietario.apellido}` : '',
       })),
@@ -279,36 +229,18 @@ export default function Vehiculos() {
 
       <div className="toolbar">
         <button className="btn-ghost" onClick={exportar}>
-          <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
-            download
-          </span>
+          <span className="material-symbols-outlined" style={{ fontSize: 16 }}>download</span>
           Exportar CSV
         </button>
       </div>
 
-      {/* Bento */}
-      <div className="bento-grid">
-        <div className="bento-col-5">
-          <div className="form-card" style={{ height: '100%' }}>
-            <div className="card-header" style={{ borderBottom: 'none', paddingBottom: 0, marginBottom: 20 }}>
-              <span className="material-symbols-outlined">app_registration</span>
-              <h3 className="card-title">Registrar nuevo vehículo</h3>
-            </div>
-            <FormVehiculo
-              mostrarPropietario
-              estadoInicial="ROBADO"
-              onGuardado={() => {
-                setOk('Vehículo registrado correctamente');
-                setTimeout(() => setOk(''), 3000);
-                cargar();
-              }}
-            />
-            {ok && <div className="success" style={{ marginTop: 12 }}>{ok}</div>}
-          </div>
-        </div>
+      {ok && <div className="success" style={{ marginBottom: 16 }}>{ok}</div>}
+      {err && <div className="error" style={{ marginBottom: 16 }}>{err}</div>}
 
-        <div className="bento-col-7">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20, height: '100%' }}>
+      {/* Mapa + stats (sin formulario: los vehiculos se crean desde Sucesos) */}
+      <div className="bento-grid">
+        <div className="bento-col-12" style={{ gridColumn: '1 / -1' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             <MapaTactical
               puntos={puntos}
               altura={300}
@@ -316,7 +248,6 @@ export default function Vehiculos() {
               hudValor={`${puntos.length} puntos detectados`}
               emptyMessage="Sin robos georreferenciados"
             />
-
             <div className="mini-stats">
               <div className="mini-stat">
                 <div className="mini-stat-label">Flota total</div>
@@ -339,7 +270,7 @@ export default function Vehiculos() {
       </div>
 
       {/* Tabla */}
-      <div className="table-wrap">
+      <div className="table-wrap" style={{ marginTop: 20 }}>
         <div className="table-header">
           <div className="table-header-title">
             <span className="material-symbols-outlined">database</span>
@@ -445,12 +376,20 @@ export default function Vehiculos() {
                           visibility
                         </span>
                       </button>
+                      <button
+                        className="btn-icon"
+                        onClick={() => setEditando(v)}
+                        title="Editar"
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: 18 }}>
+                          edit
+                        </span>
+                      </button>
                       <select
                         value={v.estado}
                         onChange={(e) => cambiarEstado(v.id!, e.target.value as EstadoVehiculo)}
                         style={{ width: 140, fontSize: 11, padding: '6px 24px 6px 10px' }}
                       >
-                        {/* Estados elegibles + el actual si lo puso el motor */}
                         {Array.from(new Set([
                           ...(v.estado ? [v.estado] : []),
                           ...ESTADOS_SELECCIONABLES,
@@ -492,6 +431,29 @@ export default function Vehiculos() {
         />
       </div>
 
+      {/* Modal Editar vehiculo */}
+      <Modal
+        abierto={editando !== null}
+        onClose={() => setEditando(null)}
+        titulo="Editar vehículo"
+        icono="edit"
+        ancho={620}
+      >
+        <FormVehiculo
+          key={editando?.id ?? 'editar'}
+          vehiculoInicial={editando}
+          mostrarPropietario
+          onGuardado={() => {
+            setEditando(null);
+            setOk('Vehículo actualizado correctamente');
+            setTimeout(() => setOk(''), 3000);
+            cargar();
+          }}
+          onCancelar={() => setEditando(null)}
+          textoGuardar="Actualizar registro"
+        />
+      </Modal>
+
       {/* Modal Detalle Vehículo */}
       {detalle && (
         <ModalDetalle
@@ -515,6 +477,7 @@ export default function Vehiculos() {
           }
           campos={[
             { etiqueta: 'Placa', valor: detalle.placa, mono: true, destacado: true },
+            { etiqueta: 'Chasis', valor: detalle.chasis || '—', mono: true },
             { etiqueta: 'Marca', valor: detalle.marca },
             { etiqueta: 'Modelo', valor: detalle.modelo },
             { etiqueta: 'Año', valor: detalle.anio?.toString() || '—' },
@@ -534,6 +497,23 @@ export default function Vehiculos() {
           ]}
           extra={
             <div>
+              {detalle.declaracion && (
+                <div style={{ marginBottom: 16 }}>
+                  <h4 style={{
+                    fontSize: 11, color: 'var(--slate-500)', textTransform: 'uppercase',
+                    letterSpacing: '0.1em', margin: '0 0 8px',
+                  }}>
+                    Declaración
+                  </h4>
+                  <div style={{
+                    padding: 12, background: 'var(--slate-950)',
+                    border: '1px solid var(--slate-800)', fontSize: 13,
+                    color: 'var(--slate-300)', lineHeight: 1.6,
+                  }}>
+                    {detalle.declaracion}
+                  </div>
+                </div>
+              )}
               <h4
                 style={{
                   fontSize: 11,
@@ -558,7 +538,6 @@ export default function Vehiculos() {
                   Registrar avistamiento
                 </button>
               </h4>
-
               {avistamientosVehiculo.length === 0 ? (
                 <div
                   style={{
@@ -643,7 +622,6 @@ export default function Vehiculos() {
                 {detalle.marca} {detalle.modelo}
               </div>
             </div>
-
             <div className="form-group" style={{ marginBottom: 14 }}>
               <label className="form-label">Ubicación del avistamiento</label>
               <select
@@ -658,7 +636,6 @@ export default function Vehiculos() {
                 ))}
               </select>
             </div>
-
             <div className="form-grid" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
               <div className="form-group">
                 <label className="form-label">Fecha y hora</label>
@@ -682,7 +659,6 @@ export default function Vehiculos() {
                 </select>
               </div>
             </div>
-
             <div
               style={{
                 display: 'flex',

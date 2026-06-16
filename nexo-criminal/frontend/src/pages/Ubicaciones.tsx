@@ -7,9 +7,6 @@ import MapaTactical, { PuntoMapa } from '../components/MapaTactical';
 import ModalConfirmar from '../components/ModalConfirmar';
 import ModalDetalle from '../components/ModalDetalle';
 import { exportarCSV } from '../services/exportar';
-import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
-import { divIcon } from 'leaflet';
-import Modal from '../components/Modal';
 
 const TIPOS: TipoUbicacion[] = [
   'TALLER', 'GALPON', 'TERRENO_BALDIO', 'DOMICILIO',
@@ -29,69 +26,17 @@ const tipoIcono: Record<string, string> = {
   TRANSPORTE_PUBLICO: 'directions_bus', COMERCIO: 'storefront', OTRO: 'place',
 };
 
-// Componente que captura clicks en el mapa
-function CapturadorClicks({ onPick }: { onPick: (lat: number, lng: number) => void }) {
-  useMapEvents({
-    click(e) {
-      onPick(e.latlng.lat, e.latlng.lng);
-    },
-  });
-  return null;
-}
-
-// Corrige el tamaño del mapa al montarse dentro del modal,
-// sin disparar un resize global que afecte a otros mapas de la pagina.
-function InvalidarTamano() {
-  const map = useMap();
-  useEffect(() => {
-    const t = setTimeout(() => map.invalidateSize(), 200);
-    return () => clearTimeout(t);
-  }, [map]);
-  return null;
-}
-
 export default function Ubicaciones() {
   const [lista, setLista] = useState<Ubicacion[]>([]);
   const [filtro, setFiltro] = useState('');
   const [filtroTipo, setFiltroTipo] = useState<string>('');
-  const [form, setForm] = useState<Ubicacion>({
-    direccion: '', latitud: 0, longitud: 0, tipo: 'OTRO',
-  });
   const [err, setErr] = useState('');
   const [ok, setOk] = useState('');
-  const [pickerAbierto, setPickerAbierto] = useState(false);
-  const [pickerCoords, setPickerCoords] = useState<[number, number] | null>(null);
   const [detalle, setDetalle] = useState<Ubicacion | null>(null);
   const [aEliminar, setAEliminar] = useState<Ubicacion | null>(null);
 
   const cargar = async () => setLista(await ubicacionService.listar());
   useEffect(() => { cargar(); }, []);
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErr(''); setOk('');
-    if (form.latitud === 0 && form.longitud === 0) {
-      setErr('Coordenadas inválidas. Hacé click en el mapa o ingresá las coordenadas manualmente.');
-      return;
-    }
-    try {
-      await ubicacionService.crear(form);
-      setForm({ direccion: '', latitud: 0, longitud: 0, tipo: 'OTRO' });
-      setOk('Ubicación registrada correctamente');
-      setTimeout(() => setOk(''), 3000);
-      await cargar();
-    } catch (e: any) {
-      setErr(e?.response?.data?.error || 'Error al guardar');
-    }
-  };
-
-  const confirmarPicker = () => {
-    if (pickerCoords) {
-      setForm({ ...form, latitud: pickerCoords[0], longitud: pickerCoords[1] });
-      setPickerAbierto(false);
-      setPickerCoords(null);
-    }
-  };
 
   const confirmarEliminar = async () => {
     if (!aEliminar) return;
@@ -143,14 +88,6 @@ export default function Ubicaciones() {
 
   const sospechosas = lista.filter(u => u.nodoSospechoso).length;
 
-  // Marker para el picker
-  const pickIcon = divIcon({
-    className: 'custom-marker',
-    iconSize: [32, 42],
-    iconAnchor: [16, 32],
-    html: `<div class="marker-pin sospechoso"><span class="material-symbols-outlined">push_pin</span></div>`,
-  });
-
   return (
     <>
       <div className="page-header">
@@ -165,70 +102,21 @@ export default function Ubicaciones() {
       </div>
 
       <div className="toolbar">
-        <button className="btn-secondary" onClick={() => setPickerAbierto(true)}>
-          <span className="material-symbols-outlined" style={{ fontSize: 16 }}>add_location_alt</span>
-          Marcar punto en el mapa
-        </button>
         <button className="btn-ghost" onClick={exportar}>
           <span className="material-symbols-outlined" style={{ fontSize: 16 }}>download</span>
           Exportar CSV
         </button>
       </div>
 
-      <div className="bento-grid">
-        <div className="bento-col-5">
-          <div className="form-card">
-            <div className="card-header" style={{ borderBottom: 'none', paddingBottom: 0, marginBottom: 20 }}>
-              <span className="material-symbols-outlined">add_location_alt</span>
-              <h3 className="card-title">Registrar ubicación</h3>
-            </div>
-            <form onSubmit={submit}>
-              <div className="form-group full" style={{ marginBottom: 14 }}>
-                <label className="form-label">Dirección</label>
-                <input value={form.direccion || ''}
-                  onChange={(e) => setForm({ ...form, direccion: e.target.value })}
-                  placeholder="Calle, número, ciudad..." />
-              </div>
+      {ok && <div className="success" style={{ marginBottom: 16 }}>{ok}</div>}
+      {err && <div className="error" style={{ marginBottom: 16 }}>{err}</div>}
 
-              <div className="form-grid" style={{ gridTemplateColumns: 'repeat(2, 1fr)', marginBottom: 8 }}>
-                <div className="form-group">
-                  <label className="form-label">Latitud</label>
-                  <input type="number" step="0.00001" value={form.latitud}
-                    onChange={(e) => setForm({ ...form, latitud: Number(e.target.value) })}
-                    placeholder="0.000000" required style={{ fontFamily: 'var(--font-mono)' }} />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Longitud</label>
-                  <input type="number" step="0.00001" value={form.longitud}
-                    onChange={(e) => setForm({ ...form, longitud: Number(e.target.value) })}
-                    placeholder="0.000000" required style={{ fontFamily: 'var(--font-mono)' }} />
-                </div>
-              </div>
-
-              <button type="button" className="btn-ghost"
-                onClick={() => setPickerAbierto(true)}
-                style={{ width: '100%', marginBottom: 14, fontSize: 11 }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 14 }}>location_on</span>
-                Seleccionar coordenadas en el mapa
-              </button>
-
-              {err && <div className="error">{err}</div>}
-              {ok && <div className="success">{ok}</div>}
-
-              <button type="submit" className="btn-primary" style={{ width: '100%' }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>save</span>
-                Crear ubicación
-              </button>
-            </form>
-          </div>
-        </div>
-
-        <div className="bento-col-7">
-          <MapaTactical puntos={puntos} altura="100%"
-            hudLabel="Sistema GIS activo"
-            hudValor={`${puntos.length} ubicaciones`}
-            emptyMessage="Sin ubicaciones georreferenciadas" />
-        </div>
+      {/* Mapa a ancho completo (las ubicaciones se crean desde los mapas de Sucesos) */}
+      <div style={{ marginBottom: 20 }}>
+        <MapaTactical puntos={puntos} altura={360}
+          hudLabel="Sistema GIS activo"
+          hudValor={`${puntos.length} ubicaciones`}
+          emptyMessage="Sin ubicaciones georreferenciadas" />
       </div>
 
       {/* Tabla */}
@@ -311,67 +199,6 @@ export default function Ubicaciones() {
         <Paginacion total={total} pagina={pagina} porPagina={porPagina}
           onCambiar={setPagina} label="ubicaciones" />
       </div>
-
-      {/* Modal Picker de mapa */}
-      <Modal
-        abierto={pickerAbierto}
-        onClose={() => { setPickerAbierto(false); setPickerCoords(null); }}
-        titulo="Marcar punto en el mapa"
-        icono="add_location_alt"
-        ancho={760}
-      >
-        <p style={{ color: 'var(--slate-400)', fontSize: 12, marginBottom: 12 }}>
-          Hacé click en cualquier punto del mapa para seleccionar las coordenadas.
-        </p>
-        {pickerAbierto && (
-          <div style={{ height: 400, border: '1px solid var(--slate-800)', position: 'relative' }}>
-            <MapContainer
-              key={`picker-${pickerAbierto}`}
-              center={[25.7617, -80.1918]}
-              zoom={11}
-              style={{ height: '100%', width: '100%' }}
-            >
-              <TileLayer
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                attribution="© OpenStreetMap"
-              />
-              <InvalidarTamano />
-              <CapturadorClicks onPick={(lat, lng) => setPickerCoords([lat, lng])} />
-              {pickerCoords && <Marker position={pickerCoords} icon={pickIcon} />}
-            </MapContainer>
-          </div>
-        )}
-        {pickerCoords && (
-          <div
-            style={{
-              marginTop: 12, padding: 10, background: 'var(--slate-950)',
-              border: '1px solid var(--red-500)', fontFamily: 'var(--font-mono)', fontSize: 12,
-            }}
-          >
-            <strong style={{ color: 'var(--red-500)' }}>Coordenadas seleccionadas: </strong>
-            <span style={{ color: 'white' }}>
-              {pickerCoords[0].toFixed(6)}, {pickerCoords[1].toFixed(6)}
-            </span>
-          </div>
-        )}
-        <div
-          style={{
-            display: 'flex', gap: 8, justifyContent: 'flex-end',
-            marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--slate-800)',
-          }}
-        >
-          <button
-            className="btn-ghost"
-            onClick={() => { setPickerAbierto(false); setPickerCoords(null); }}
-          >
-            Cancelar
-          </button>
-          <button className="btn-primary" onClick={confirmarPicker} disabled={!pickerCoords}>
-            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>check</span>
-            Usar estas coordenadas
-          </button>
-        </div>
-      </Modal>
 
       {/* Modal Detalle */}
       {detalle && (

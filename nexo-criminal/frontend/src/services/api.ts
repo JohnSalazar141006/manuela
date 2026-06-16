@@ -67,6 +67,12 @@ export const sucesoService = {
   eliminar: async (id: number): Promise<void> => { await api.delete(`/sucesos/${id}`); },
 };
 
+// ---- Robo completo (orquestador transaccional) ----
+export const roboCompletoService = {
+  registrar: async (datos: any): Promise<{ sucesoId: number; mensaje: string }> =>
+    (await api.post('/robo-completo', datos)).data,
+};
+
 // ---- Modus Operandi (catálogo) ----
 export const modusService = {
   listar: async (): Promise<{ id: number; codigo: string; etiqueta: string; descripcion?: string }[]> =>

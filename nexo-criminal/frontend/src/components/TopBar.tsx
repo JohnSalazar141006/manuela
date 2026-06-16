@@ -195,10 +195,6 @@ export default function TopBar() {
                   <span className="material-symbols-outlined">palette</span>
                   Tema de la interfaz
                 </div>
-                <div className="dropdown-item" onClick={() => abrirConfig('notifs')}>
-                  <span className="material-symbols-outlined">notifications</span>
-                  Notificaciones
-                </div>
                 <div className="dropdown-divider"></div>
                 <div className="dropdown-item" onClick={() => abrirConfig('motor')}>
                   <span className="material-symbols-outlined">hub</span>
